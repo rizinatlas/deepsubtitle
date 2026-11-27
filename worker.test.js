@@ -1,0 +1,15 @@
+import worker from './worker.js';
+import assert from 'node:assert/strict';
+const rows=[];const objects=new Map();
+const env={ADMIN_TOKEN:'0123456789abcdefghijklmnop',ASSETS:{fetch:()=>new Response('asset')},BUCKET:{put:async(k,v)=>objects.set(k,v),get:async(k)=>objects.has(k)?{body:objects.get(k)}:null},DB:{prepare(sql){let values=[];return {bind(...v){values=v;return this},async first(){if(sql.includes('FROM posts'))return rows.find(x=>x.video_id===values[0])||null;return null},async all(){return {results:rows}},async run(){if(sql.startsWith('INSERT INTO posts'))rows.push({id:values[0],video_id:values[1],title:values[2],note:values[3],japanese_key:values[4],korean_key:values[5],created_at:values[6],updated_at:values[7]});if(sql.startsWith('UPDATE posts')){const row=rows.find(x=>x.video_id===values[5]);Object.assign(row,{title:values[0],note:values[1],japanese_key:values[2],korean_key:values[3]})}return {meta:{changes:1}}}}}}};
+const origin='https://example.com';const call=(path,init={})=>worker.fetch(new Request(origin+path,init),env);
+assert.equal((await call('/api/session')).status,200);
+const form=()=>{const f=new FormData();f.set('url','https://www.youtube.com/watch?v=r3af6RtGfOQ');f.set('title','테스트');return f};
+assert.equal((await call('/api/videos',{method:'POST',headers:{origin},body:form()})).status,403);
+const first=form();first.set('ja',new File(['1\n00:00:00,000 --> 00:00:01,000\nこんにちは\n'],'ja.srt'));assert.equal((await call('/api/videos',{method:'POST',headers:{origin,authorization:'Bearer '+env.ADMIN_TOKEN},body:first})).status,200);
+const list=await (await call('/api/videos')).json();assert.equal(list.videos[0].japanese_ready,true);assert.equal(list.videos[0].korean_ready,false);assert.equal('japanese_key' in list.videos[0],false);
+assert.match(await (await call('/api/files/r3af6RtGfOQ/ja')).text(),/こんにちは/);
+const second=form();second.set('ko',new File(['1\n00:00:00,000 --> 00:00:01,000\n안녕하세요\n'],'ko.srt'));assert.equal((await call('/api/videos',{method:'POST',headers:{origin,authorization:'Bearer '+env.ADMIN_TOKEN},body:second})).status,200);assert.ok(rows[0].japanese_key&&rows[0].korean_key);
+assert.equal((await call('/api/videos',{method:'POST',headers:{origin:'https://evil.example',authorization:'Bearer '+env.ADMIN_TOKEN},body:form()})).status,403);
+console.log('Worker API smoke tests passed');
+
