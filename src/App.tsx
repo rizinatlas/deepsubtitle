@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, type FormEvent } from 'react';
+import React, { useEffect, useState, type FormEvent } from 'react';
 import { ArrowDown, ArrowUpRight, ChevronDown, Clapperboard, MessageCircle, Plus, Search, X } from 'lucide-react';
 type Video={video_id:string;title:string;note:string;japanese_ready:boolean;korean_ready:boolean};
 type Comment={author:string;message:string};
